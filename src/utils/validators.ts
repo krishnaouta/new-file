@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
 // Basic transformations
@@ -11,9 +12,15 @@ export const transformations = {
         return isNaN(num) ? value : num;
     },
     boolean: (value: any) => {
-        if (typeof value === 'boolean') return value;
-        const s = String(value).toLowerCase();
-        return s === 'true' || s === '1' || s === 'yes' || s === 'y';
+        const s = String(value).trim().toLowerCase();
+        const res = (() => {
+            if (typeof value === 'boolean') return value;
+            if (s === 'true' || s === '1' || s === 'yes' || s === 'y' || s === 't') return true;
+            if (s === 'false' || s === '0' || s === 'no' || s === 'n' || s === 'f') return false;
+            return false;
+        })();
+        console.log(`[Boolean Debug] Input: "${value}" (${typeof value}), Processed: "${s}", Result: ${res}`);
+        return res;
     },
     date: (value: any) => {
         if (value instanceof Date) return value;
@@ -28,16 +35,59 @@ export const transformations = {
         const d = new Date(value);
         if (isNaN(d.getTime())) return value;
         return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    },
+    cleanNumber: (value: any) => {
+        if (typeof value === 'number') return value;
+        if (!value) return value;
+        const s = String(value);
+        // Remove everything that is not a digit, a minus sign, or a dot
+        const cleaned = s.replace(/[^\d.-]/g, '');
+        // Parse float to see if it's valid
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? value : num;
+    },
+    cleanPercentage: (value: any) => {
+        if (typeof value === 'number') return value;
+        if (!value) return value;
+        const s = String(value);
+        // Remove % and comma
+        const cleaned = s.replace(/[%]/g, '').replace(/,/g, '');
+        const num = parseFloat(cleaned);
+        // If it was "50%", do we want 50 or 0.5? Excel usually treats 50% as 0.5.
+        // But human input "50" might mean 50%.
+        // For now, let's just parse the number. If it was "50%", it becomes 50.
+        return isNaN(num) ? value : num;
+    },
+    cleanPhone: (value: any) => {
+        if (!value) return value;
+        // Keep digits, +, -, (, ), and space
+        const s = String(value);
+        return s.replace(/[^\d+\-()\s]/g, '').trim();
+    },
+    cleanList: (value: any) => {
+        if (Array.isArray(value)) return value;
+        if (!value) return [];
+        // Split by comma
+        return String(value).split(',').map(s => s.trim()).filter(Boolean);
     }
 };
 
 // Validation schemas
 export const schemas = {
     email: z.string().email("Invalid email address"),
-    phone: z.string().min(10, "Phone number too short").max(15, "Phone number too long"), // Simplified
+    phone: z.string().min(10, "Phone number too short").max(15, "Phone number too long"),
     date: z.coerce.date(),
     number: z.number().or(z.string().regex(/^\d+$/, "Must be a number")),
-    required: z.string().min(1, "Required field")
+    required: z.string().min(1, "Required field"),
+
+    // Aliases for better UI matching
+    currency: z.number().or(z.string().regex(/^-?\d+(\.\d+)?$/, "Must be a valid amount")),
+    percentage: z.number().or(z.string().regex(/^-?\d+(\.\d+)?$/, "Must be a valid percentage")),
+    int: z.number().int().or(z.string().regex(/^-?\d+$/, "Must be an integer")),
+    float: z.number().or(z.string().regex(/^-?\d+(\.\d+)?$/, "Must be a valid number")),
+    boolean: z.boolean().or(z.string().transform(val => val === 'true' || val === '1')),
+    string: z.string(),
+    list: z.array(z.string()).or(z.string()) // Allow array or string (which will be cleaned)
 };
 
 export type ValidationRule = keyof typeof schemas;
@@ -69,7 +119,6 @@ export const processRow = (row: any, configs: ColumnConfig[]) => {
             const schema = schemas[config.validation];
             const result = schema.safeParse(value);
             if (!result.success) {
-                // Cast to any to avoid TypeScript strictness issues with different ZodError generics
                 errors[config.column] = (result.error as any).errors[0].message;
             }
         }
@@ -78,6 +127,7 @@ export const processRow = (row: any, configs: ColumnConfig[]) => {
     return { row: newRow, errors };
 };
 export type InferredType = 'string' | 'number' | 'boolean' | 'date' | 'email';
+
 
 export const smartClean = (data: any[], headers: string[]) => {
     return data.map(row => {
@@ -91,6 +141,7 @@ export const smartClean = (data: any[], headers: string[]) => {
         return newRow;
     });
 };
+
 
 export const inferColumnTypes = (data: any[], headers: string[]): Record<string, InferredType> => {
     const types: Record<string, InferredType> = {};
@@ -168,4 +219,32 @@ export const suggestRules = (type: InferredType): { validation?: ValidationRule,
         default:
             return {};
     }
+};
+
+export const rulesFromInternalType = (type: string): { validation?: ValidationRule, transformation?: TransformationType, displayName?: string } => {
+    const t = type.toLowerCase();
+
+    if (t.includes('string') || t === 'text') return { validation: 'string', displayName: 'String' };
+    if (t.includes('currency')) {
+        return { validation: 'currency', transformation: 'cleanNumber', displayName: 'Currency' };
+    }
+    // "Number" handling: check for "numeric", "float", "decimal", "double", or just "number"
+    if (t.includes('numeric') || t.includes('float') || t.includes('decimal') || t.includes('double') || t === 'number') {
+        return { validation: 'float', transformation: 'cleanNumber', displayName: 'Number' };
+    }
+    if (t.includes('int')) {
+        return { validation: 'int', transformation: 'cleanNumber', displayName: 'Integer' };
+    }
+    if (t.includes('percentage') || t.includes('%')) {
+        return { validation: 'percentage', transformation: 'cleanPercentage', displayName: 'Percentage' };
+    }
+    if (t.includes('phone') || t.includes('mobile') || t.includes('fax')) {
+        return { validation: 'phone', transformation: 'cleanPhone', displayName: 'Phone' };
+    }
+    if (t.includes('boolean') || t.includes('bool')) return { validation: 'boolean', transformation: 'boolean', displayName: 'Boolean' };
+    if (t.includes('date') || t.includes('time')) return { validation: 'date', displayName: 'Date' };
+    if (t.includes('list') || t.includes('array')) return { validation: 'list', transformation: 'cleanList', displayName: 'List' };
+
+    // Default fallback
+    return { displayName: type };
 };

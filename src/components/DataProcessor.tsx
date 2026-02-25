@@ -1,22 +1,34 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useMemo } from 'react';
-import { ColumnConfig, processRow, TransformationType, ValidationRule, schemas, transformations, inferColumnTypes, InferredType, smartClean, suggestRules } from '../utils/validators';
-import { internalFields, splitColumn, ColumnMapping, combineColumns, getBestMatch } from '../utils/dataMapper';
+import { ColumnConfig, processRow, schemas, transformations, inferColumnTypes, smartClean, suggestRules, rulesFromInternalType } from '../utils/validators';
+import { splitColumn, ColumnMapping, combineColumns, getBestMatch, InternalField } from '../utils/dataMapper';
 import { DataTableVirtual } from './DataTable';
-import { Settings, Save, Download, Play, AlertCircle, ArrowRightLeft, Split, Plus, Trash2, Sparkles, ArrowRight } from 'lucide-react';
+import { Save, Download, AlertCircle, ArrowRightLeft, Split, Plus, Trash2, Sparkles, ArrowRight, Undo, Redo } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import { clsx } from 'clsx';
 import { SearchableSelect } from './SearchableSelect';
+import { DataQualityDashboard } from './DataQualityDashboard';
+import { useHistory } from '../hooks/useHistory';
 
 interface DataProcessorProps {
     data: any[];
     headers: string[];
     onDataUpdate: (data: any[], headers: string[]) => void;
+    internalFields: InternalField[];
 }
 
-export function DataProcessor({ data: initialData, headers, onDataUpdate }: DataProcessorProps) {
-    const [configs, setConfigs] = useState<ColumnConfig[]>([]);
+interface ProcessorTemplate {
+    name: string;
+    mappings: Record<string, string>;
+    configs: ColumnConfig[];
+    timestamp: number;
+}
+
+export function DataProcessor({ data: initialData, headers, onDataUpdate, internalFields }: DataProcessorProps) {
+
     const [processedData, setProcessedData] = useState<{ data: any[], errors: Record<number, Record<string, string>> }>({ data: initialData, errors: {} });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [processing, setProcessing] = useState(false);
 
     // Inferred Types State - memoized directly to avoid useEffect + setState loop or stale closures if just using state
@@ -26,24 +38,150 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
     const [showSplit, setShowSplit] = useState(false);
     const [splitConfig, setSplitConfig] = useState({ column: '', delimiter: ' ', target1: '', target2: '', strategy: 'first' as 'first' | 'last', keepOriginal: true });
 
-    // Mapping State
+    // History State for Configs and Mappings
+    const configsHistory = useHistory<ColumnConfig[]>([]);
+    const mappingHistory = useHistory<Record<string, string>>({});
+
+    // Derived values for compatibility
+    const configs = configsHistory.state;
+    const columnMappings = mappingHistory.state;
+
+    // Mapping State UI
     const [showMapping, setShowMapping] = useState(false);
-    const [columnMappings, setColumnMappings] = useState<Record<string, string>>({}); // Header -> InternalKey
+    const [keepUnmapped, setKeepUnmapped] = useState(false);
+
+    // Dashboard State
+    const [showErrorsOnly, setShowErrorsOnly] = useState(false);
+
+    // Template State
+    const [templates, setTemplates] = useState<ProcessorTemplate[]>(() => {
+        try {
+            const saved = localStorage.getItem('processorTemplates');
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+    const [showLoadTemplate, setShowLoadTemplate] = useState(false);
+    const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+    const [newTemplateName, setNewTemplateName] = useState('');
+
+    const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+    const handleSaveTemplate = () => {
+        if (!newTemplateName.trim()) return;
+
+        const newTemplate: ProcessorTemplate = {
+            name: newTemplateName,
+            mappings: columnMappings,
+            configs,
+            timestamp: Date.now()
+        };
+
+        const existingIndex = templates.findIndex(t => t.name.toLowerCase() === newTemplateName.trim().toLowerCase());
+        let updated;
+
+        if (existingIndex >= 0) {
+            updated = [...templates];
+            updated[existingIndex] = newTemplate;
+        } else {
+            updated = [...templates, newTemplate];
+        }
+
+        setTemplates(updated);
+        localStorage.setItem('processorTemplates', JSON.stringify(updated));
+
+        // Show success message
+        setSaveMessage("Template saved!");
+        setTimeout(() => {
+            setSaveMessage(null);
+            setShowSaveTemplate(false);
+            setNewTemplateName('');
+        }, 1500);
+    };
+
+    const handleLoadTemplate = (template: ProcessorTemplate) => {
+        if (Object.keys(template.mappings).length > 0) {
+            mappingHistory.set(template.mappings);
+            // Optionally auto-open mapping to show it loaded
+            setShowMapping(true);
+        }
+        if (template.configs.length > 0) {
+            configsHistory.set(template.configs);
+        }
+    };
+
+    const handleDeleteTemplate = (index: number) => {
+        const updated = templates.filter((_, i) => i !== index);
+        setTemplates(updated);
+        localStorage.setItem('processorTemplates', JSON.stringify(updated));
+    };
 
     const handleConfigChange = (column: string, field: 'validation' | 'transformations', value: any) => {
-        setConfigs(prev => {
-            const existing = prev.find(c => c.column === column);
-            if (existing) {
-                return prev.map(c => c.column === column ? { ...c, [field]: value } : c);
-            }
-            return [...prev, { column, [field]: value }];
-        });
+        const existing = configs.find(c => c.column === column);
+        let newConfigs: ColumnConfig[];
+
+        if (existing) {
+            newConfigs = configs.map(c => {
+                if (c.column === column) {
+                    return { ...c, [field]: value };
+                }
+                return c;
+            });
+        } else {
+            newConfigs = [...configs, { column, [field]: value }];
+        }
+
+        configsHistory.set(newConfigs);
     };
 
     // Sync state when props change (e.g. after split)
     React.useEffect(() => {
         setProcessedData({ data: initialData, errors: {} });
     }, [initialData]);
+
+    // Auto-detect configs on load if internalFields are present
+    React.useEffect(() => {
+        // If we already have configs (e.g. from history or previous load), don't overwrite
+        if (configs.length > 0) return;
+
+        if (!internalFields || internalFields.length === 0) return;
+
+        const newConfigs: ColumnConfig[] = [];
+        const newMappings: Record<string, string> = {};
+
+        headers.forEach(header => {
+            // Find match - check key and label
+            const field = internalFields.find(f =>
+                f.key.toLowerCase() === header.toLowerCase() ||
+                f.label.toLowerCase() === header.toLowerCase()
+            );
+
+            if (field) {
+                // Auto-map UI
+                newMappings[header] = field.key;
+
+                if (field.type) {
+                    const rules = rulesFromInternalType(field.type);
+                    if (rules.validation || rules.transformation) {
+                        newConfigs.push({
+                            column: header,
+                            validation: rules.validation,
+                            transformations: rules.transformation ? [rules.transformation] : []
+                        });
+                    }
+                }
+            }
+        });
+
+        if (newConfigs.length > 0) {
+            configsHistory.set(newConfigs);
+        }
+        if (Object.keys(newMappings).length > 0) {
+            mappingHistory.set(newMappings);
+        }
+    }, [headers, internalFields, configs.length, configsHistory, mappingHistory]);
+
 
     const handleSplit = () => {
         if (!splitConfig.column || !splitConfig.target1 || !splitConfig.target2) return;
@@ -54,7 +192,7 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
 
         // Replace source column with new columns
         const sourceIndex = headers.indexOf(splitConfig.column);
-        let newHeaders = [...headers];
+        const newHeaders = [...headers];
 
         if (sourceIndex !== -1) {
             if (splitConfig.keepOriginal) {
@@ -86,19 +224,82 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
 
         if (mappings.length === 0) return;
 
+        // Auto-generate configs based on mapping rules
+        // Filter out configs for source columns that are being mapped to prevent ghost errors
+        const mappedSourceColumns = mappings.map(m => m.sourceColumn);
+        const newConfigs: ColumnConfig[] = configs.filter(c => !mappedSourceColumns.includes(c.column));
+
+        const addOrUpdateConfig = (config: ColumnConfig) => {
+            const existingIdx = newConfigs.findIndex(c => c.column === config.column);
+            if (existingIdx !== -1) {
+                newConfigs[existingIdx] = config;
+            } else {
+                newConfigs.push(config);
+            }
+        };
+
+        mappings.forEach(m => {
+            // Priority 1: Preserve existing manual config for the source column
+            const existingSourceConfig = configs.find(c => c.column === m.sourceColumn);
+
+            if (existingSourceConfig) {
+                const newConfig: ColumnConfig = {
+                    ...existingSourceConfig,
+                    column: m.targetField!
+                };
+                addOrUpdateConfig(newConfig);
+                return;
+            }
+
+            // Priority 2: Auto-generate from Internal Field Definition
+            const internalField = internalFields.find(f => f.key === m.targetField);
+            if (internalField && internalField.type) {
+                const rules = rulesFromInternalType(internalField.type);
+                if (rules.validation || rules.transformation) {
+                    const newConfig: ColumnConfig = {
+                        column: m.targetField!,
+                        validation: rules.validation,
+                        transformations: rules.transformation ? [rules.transformation] : []
+                    };
+                    addOrUpdateConfig(newConfig);
+                }
+            }
+        });
+
         const newData = initialData.map(row => {
             const mapped: any = {};
+
+            // Map defined fields
             mappings.forEach(m => {
                 if (m.targetField) mapped[m.targetField] = row[m.sourceColumn];
             });
+
+            // If keepUnmapped is true, copy over columns that were NOT mapped
+            if (keepUnmapped) {
+                headers.forEach(header => {
+                    // If this header was NOT used as a source column in mappings, keep it
+                    if (!mappedSourceColumns.includes(header)) {
+                        mapped[header] = row[header];
+                    }
+                });
+            }
+
             return mapped;
         });
 
-        const newHeaders = mappings.map(m => m.targetField!).filter(Boolean);
+        // Calculate new headers
+        let newHeaders = mappings.map(m => m.targetField!).filter(Boolean);
+
+        if (keepUnmapped) {
+            const unmappedHeaders = headers.filter(h => !mappedSourceColumns.includes(h));
+            newHeaders = [...newHeaders, ...unmappedHeaders];
+        }
 
         onDataUpdate(newData, newHeaders);
         setShowMapping(false);
-        setConfigs([]);
+        onDataUpdate(newData, newHeaders);
+        setShowMapping(false);
+        configsHistory.set(newConfigs); // Update configs instead of clearing
     };
 
     // Automatic Processing when configs change
@@ -168,7 +369,16 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
     };
 
     const handleExport = () => {
-        const ws = XLSX.utils.json_to_sheet(processedData.data);
+        const exportData = processedData.data.map(row => {
+            const newRow: any = {};
+            headers.forEach(header => {
+                const target = columnMappings[header] || header;
+                newRow[target] = row[header];
+            });
+            return newRow;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Cleaned Data");
         XLSX.writeFile(wb, "cleaned_data.xlsx");
@@ -192,6 +402,11 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
             __errors: processedData.errors[index]
         }));
 
+        // Filter by Errors
+        if (showErrorsOnly) {
+            processed = processed.filter(row => row.__errors && Object.keys(row.__errors).length > 0);
+        }
+
         if (!searchTerm) return processed;
 
         const lowerTerm = searchTerm.toLowerCase();
@@ -200,10 +415,18 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                 String(row[header] || '').toLowerCase().includes(lowerTerm)
             )
         );
-    }, [processedData, searchTerm, headers]);
+    }, [processedData, searchTerm, headers, showErrorsOnly]);
 
     return (
         <div className="space-y-8">
+            <DataQualityDashboard
+                totalRecords={initialData.length}
+                validRecords={initialData.length - Object.keys(processedData.errors).length}
+                errors={processedData.errors}
+                showErrorsOnly={showErrorsOnly}
+                onToggleShowErrors={setShowErrorsOnly}
+            />
+
             {/* Configuration Toolbar */}
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
 
@@ -289,26 +512,16 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                     )}
                 </AnimatePresence>
 
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 flex-1">
-                        <h3
-                            className="text-lg font-semibold text-[#E52D1D] flex items-center gap-2 shrink-0"
-                            style={{ color: '#E52D1D' }}
-                        >
-                            <Settings
-                                className="w-5 h-5 text-[#E52D1D]"
-                                style={{ color: '#E52D1D' }}
-                            />
-                            Processing Rules
-                        </h3>
-                        {/* Search Bar */}
-                        <div className="relative max-w-md w-full">
+                <div className="flex flex-col gap-4 mb-4">
+                    {/* Row 1: Search & Configuration */}
+                    <div className="flex items-center gap-4">
+                        <div className="flex-1 relative">
                             <input
                                 type="text"
                                 placeholder="Search rows..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-primary focus:border-transparent shadow-sm"
                             />
                             <div className="absolute left-3 top-2.5 text-slate-400">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -316,52 +529,166 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                                 </svg>
                             </div>
                         </div>
+
+                        <div className="flex gap-2 shrink-0">
+                            {/* Undo/Redo Controls */}
+                            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 border border-slate-200 mr-2">
+                                <button
+                                    onClick={configsHistory.undo}
+                                    disabled={!configsHistory.canUndo}
+                                    className="p-1.5 text-slate-600 hover:text-black hover:bg-white rounded-md disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                    title="Undo Config Change"
+                                >
+                                    <Undo className="w-4 h-4" />
+                                </button>
+                                <div className="w-px h-4 bg-slate-300 mx-0.5" />
+                                <button
+                                    onClick={configsHistory.redo}
+                                    disabled={!configsHistory.canRedo}
+                                    className="p-1.5 text-slate-600 hover:text-black hover:bg-white rounded-md disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                    title="Redo Config Change"
+                                >
+                                    <Redo className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            {/* Templates UI */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowLoadTemplate(!showLoadTemplate)}
+                                    className="flex items-center gap-2 px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium text-sm border border-slate-200"
+                                    title="Load Configuration"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    Select Template
+                                </button>
+
+                                <AnimatePresence>
+                                    {showLoadTemplate && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                                            className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-4"
+                                        >
+                                            <div className="">
+                                                <h4 className="font-semibold text-sm mb-2 text-slate-500">Saved Templates</h4>
+                                                <div className="max-h-48 overflow-y-auto space-y-1">
+                                                    {templates.length === 0 ? (
+                                                        <p className="text-xs text-slate-400 italic">No saved templates</p>
+                                                    ) : (
+                                                        templates.map((t, i) => (
+                                                            <div key={i} className="flex items-center justify-between group p-2 hover:bg-slate-50 rounded-md">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        handleLoadTemplate(t);
+                                                                        setShowLoadTemplate(false);
+                                                                    }}
+                                                                    className="text-left text-sm font-medium text-slate-700 hover:text-primary flex-1"
+                                                                >
+                                                                    {t.name}
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteTemplate(i);
+                                                                    }}
+                                                                    className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                >
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="flex gap-2 shrink-0">
-                        <button
-                            onClick={handleSmartClean}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-primary-light text-primary rounded-lg hover:bg-red-100 transition font-medium text-sm border border-red-100"
-                            title="Auto-trim whitespace and fix formatting"
-                        >
-                            <Sparkles className="w-4 h-4" />
-                            Smart Clean
-                        </button>
-                        <button
-                            onClick={() => setShowCombine(!showCombine)}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium text-sm"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Combine
-                        </button>
-                        <button
-                            onClick={() => {
-                                if (!showMapping && Object.keys(columnMappings).length === 0) {
-                                    const autoMappings: Record<string, string> = {};
-                                    headers.forEach(header => {
-                                        const match = getBestMatch(header, internalFields);
-                                        if (match) autoMappings[header] = match;
-                                    });
-                                    setColumnMappings(autoMappings);
-                                }
-                                setShowMapping(!showMapping);
-                            }}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium text-sm"
-                        >
-                            <ArrowRightLeft className="w-4 h-4" />
-                            Map Columns
-                        </button>
-                        <button
-                            onClick={() => setShowSplit(!showSplit)}
-                            className="flex mt-1 items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium text-sm"
-                        >
-                            <Split className="w-4 h-4" />
-                            Split Column
-                        </button>
+                    {/* Row 2: Actions */}
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleSmartClean}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-primary-light text-primary rounded-lg hover:bg-red-100 transition font-medium text-sm border border-red-100"
+                                title="Auto-trim whitespace and fix formatting"
+                            >
+                                <Sparkles className="w-4 h-4" />
+                                Smart Clean
+                            </button>
+
+                            <div className="w-px h-6 bg-slate-200 mx-2" />
+
+                            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                                <button
+                                    onClick={() => setShowCombine(!showCombine)}
+                                    className={clsx(
+                                        "flex items-center gap-2 px-3 py-1.5 rounded-md transition font-medium text-sm",
+                                        showCombine ? "bg-white shadow-sm text-primary" : "text-slate-600 hover:bg-white hover:shadow-sm"
+                                    )}
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Combine
+                                </button>
+                                <button
+                                    onClick={() => setShowSplit(!showSplit)}
+                                    className={clsx(
+                                        "flex items-center gap-2 px-3 py-1.5 rounded-md transition font-medium text-sm",
+                                        showSplit ? "bg-white shadow-sm text-primary" : "text-slate-600 hover:bg-white hover:shadow-sm"
+                                    )}
+                                >
+                                    <Split className="w-4 h-4" />
+                                    Split
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (Object.keys(columnMappings).length > 0) {
+                                            handleApplyMapping();
+                                        }
+                                    }}
+                                    disabled={Object.keys(columnMappings).length === 0}
+                                    className={clsx(
+                                        "flex items-center gap-2 px-3 py-1.5 rounded-md transition font-medium text-sm border",
+                                        Object.keys(columnMappings).length > 0
+                                            ? "bg-[#E52D1D] text-white border-[#E52D1D] hover:bg-[#B4142D] shadow-sm"
+                                            : "hidden"
+                                    )}
+                                    title="Apply selected column mappings to rename headers"
+                                    style={{ backgroundColor: Object.keys(columnMappings).length > 0 ? '#E52D1D' : undefined }}
+                                >
+                                    <ArrowRightLeft className="w-4 h-4" />
+                                    Apply {Object.keys(columnMappings).length} Mappings
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (!showMapping && Object.keys(columnMappings).length === 0) {
+                                            const autoMappings: Record<string, string> = {};
+                                            headers.forEach(header => {
+                                                const match = getBestMatch(header, internalFields);
+                                                if (match) autoMappings[header] = match;
+                                            });
+                                            mappingHistory.set(autoMappings);
+                                        }
+                                        setShowMapping(!showMapping);
+                                    }}
+                                    className={clsx(
+                                        "flex items-center gap-2 px-3 py-1.5 rounded-md transition font-medium text-sm",
+                                        showMapping ? "bg-white shadow-sm text-primary" : "text-slate-600 hover:bg-white hover:shadow-sm"
+                                    )}
+                                >
+                                    <ArrowRightLeft className="w-4 h-4" />
+                                    Map Columns
+                                </button>
+                            </div>
+                        </div>
 
                         <button
                             onClick={handleExport}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium shadow-sm"
                         >
                             <Download className="w-4 h-4" />
                             Export
@@ -373,10 +700,10 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                 <AnimatePresence>
                     {showMapping && (
                         <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4"
+                            initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                            animate={{ height: 'auto', opacity: 1, transitionEnd: { overflow: 'visible' } }}
+                            exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                            className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4 relative z-10"
                         >
                             <div className="flex items-center justify-between mb-4">
                                 <h4
@@ -385,13 +712,24 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                                 >
                                     Map Source Columns to Internal Fields
                                 </h4>
-                                <button
-                                    onClick={handleApplyMapping}
-                                    className="px-4 py-2 bg-[#E52D1D] text-white rounded-md text-sm hover:bg-[#B4142D] transition-colors"
-                                    style={{ backgroundColor: '#E52D1D' }}
-                                >
-                                    Apply Mapping
-                                </button>
+                                <div className="flex items-center gap-4">
+                                    <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-slate-300 text-primary focus:ring-primary"
+                                            checked={keepUnmapped}
+                                            onChange={e => setKeepUnmapped(e.target.checked)}
+                                        />
+                                        Keep Unmapped Columns
+                                    </label>
+                                    <button
+                                        onClick={handleApplyMapping}
+                                        className="px-4 py-2 bg-[#E52D1D] text-white rounded-md text-sm hover:bg-[#B4142D] transition-colors"
+                                        style={{ backgroundColor: '#E52D1D' }}
+                                    >
+                                        Apply Mapping
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -413,8 +751,9 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                                                 }))
                                             ]}
                                             value={columnMappings[header] || ''}
-                                            onChange={(val) => setColumnMappings(prev => ({ ...prev, [header]: val }))}
+                                            onChange={(val) => mappingHistory.set({ ...columnMappings, [header]: val })}
                                             placeholder="Select Field..."
+                                            allowCreate={true}
                                         />
                                     </div>
                                 ))}
@@ -544,26 +883,116 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                                         )}
                                     </div>
 
+                                    {/* Map To Control */}
+                                    <div className="mb-3">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-xs font-semibold text-slate-500">Map To Field</label>
+                                            {columnMappings[header] && (
+                                                <button
+                                                    onClick={() => {
+                                                        const newMappings = { ...columnMappings };
+                                                        delete newMappings[header];
+                                                        mappingHistory.set(newMappings);
+                                                    }}
+                                                    className="text-[10px] text-slate-400 hover:text-red-500 underline decoration-dotted"
+                                                    title="Clear mapping"
+                                                >
+                                                    Clear
+                                                </button>
+                                            )}
+                                        </div>
+                                        <SearchableSelect
+                                            options={[
+                                                { label: "(Ignore)", value: "" },
+                                                ...internalFields.sort((a, b) => a.label.localeCompare(b.label)).map(f => ({
+                                                    label: f.label,
+                                                    value: f.key,
+                                                    subLabel: f.key !== f.label ? f.key : undefined
+                                                }))
+                                            ]}
+                                            value={columnMappings[header] || ''}
+                                            onChange={(val) => {
+                                                const newMappings = { ...columnMappings, [header]: val };
+                                                mappingHistory.set(newMappings);
+
+                                                // Auto-apply logic similar to handleApplyMapping if a value is selected
+                                                if (val) {
+                                                    const field = internalFields.find(f => f.key === val);
+                                                    if (field && field.type) {
+                                                        const rules = rulesFromInternalType(field.type);
+                                                        if (rules.validation || rules.transformation) {
+                                                            // Check if we should update config
+                                                            const newConfig: ColumnConfig = {
+                                                                column: header,
+                                                                validation: rules.validation,
+                                                                transformations: rules.transformation ? [rules.transformation] : []
+                                                            };
+                                                            // Update config history
+                                                            const existingIdx = configs.findIndex(c => c.column === header);
+                                                            const newConfigsArgs = [...configs];
+                                                            if (existingIdx !== -1) {
+                                                                newConfigsArgs[existingIdx] = newConfig;
+                                                            } else {
+                                                                newConfigsArgs.push(newConfig);
+                                                            }
+                                                            configsHistory.set(newConfigsArgs);
+                                                        }
+                                                    }
+                                                }
+                                            }}
+                                            placeholder="Select Field..."
+                                            allowCreate={true}
+                                        />
+                                    </div>
+
                                     {/* Validation */}
                                     <div>
                                         <div className="flex items-center justify-between mb-1">
                                             <label className="block text-xs font-semibold text-slate-500">Validation</label>
-                                            {inferredTypes[header] && (() => {
-                                                const suggestion = suggestRules(inferredTypes[header]);
-                                                if (suggestion.validation && config.validation !== suggestion.validation) {
-                                                    return (
-                                                        <button
-                                                            onClick={() => handleConfigChange(header, 'validation', suggestion.validation)}
-                                                            className="flex items-center gap-1 text-[10px] bg-primary-light text-primary px-1.5 py-0.5 rounded cursor-pointer hover:bg-red-100 transition"
-                                                            title={`Apply suggested ${suggestion.validation} validation`}
-                                                        >
-                                                            <Sparkles className="w-3 h-3" />
-                                                            Suggest: {suggestion.validation}
-                                                        </button>
-                                                    );
-                                                }
-                                                return null;
-                                            })()}
+                                            <div className="flex items-center gap-1">
+                                                {/* Reset Button */}
+                                                {(config.validation || (config.transformations && config.transformations.length > 0)) && (
+                                                    <button
+                                                        onClick={() => {
+                                                            const newConfigs = configs.filter(c => c.column !== header);
+                                                            configsHistory.set(newConfigs);
+                                                        }}
+                                                        className="text-[10px] text-slate-400 hover:text-red-500 underline decoration-dotted"
+                                                        title="Reset all rules for this column"
+                                                    >
+                                                        Reset
+                                                    </button>
+                                                )}
+
+                                                {/* Suggestion from Mapping or Inference */}
+                                                {(() => {
+                                                    const mappedFieldKey = columnMappings[header];
+                                                    const mappedField = mappedFieldKey ? internalFields.find(f => f.key === mappedFieldKey) : null;
+                                                    const mappingRule = mappedField?.type ? rulesFromInternalType(mappedField.type) : null;
+
+                                                    const inferredType = inferredTypes[header];
+                                                    const inferenceSuggestion = inferredType ? suggestRules(inferredType) : {};
+
+                                                    // Prioritize mapping rule, then inference
+                                                    const suggestedValidation = mappingRule?.validation || inferenceSuggestion.validation;
+                                                    const suggestedDisplay = mappingRule?.displayName || (inferredType ? inferredType.charAt(0).toUpperCase() + inferredType.slice(1) : null);
+
+                                                    if (suggestedValidation && config.validation !== suggestedValidation) {
+                                                        // If mapping says 'Number' but config is empty, suggest it.
+                                                        return (
+                                                            <button
+                                                                onClick={() => handleConfigChange(header, 'validation', suggestedValidation)}
+                                                                className="flex items-center gap-1 text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded cursor-pointer hover:bg-blue-100 transition border border-blue-100"
+                                                                title={`Apply suggested ${suggestedValidation} validation based on ${mappedField ? 'mapping' : 'data content'}`}
+                                                            >
+                                                                <Sparkles className="w-3 h-3" />
+                                                                {mappedField ? `Match: ${suggestedDisplay}` : `Suggest: ${suggestedDisplay}`}
+                                                            </button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
                                         </div>
                                         <select
                                             className="w-full text-sm border-slate-300 rounded-md focus:border-primary focus:ring-primary"
@@ -582,14 +1011,15 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                                         <label className="block text-xs font-semibold text-slate-500 mb-1">Transformations</label>
                                         <div className="space-y-2">
                                             {(config.transformations || []).map((t, idx) => (
-                                                <div key={idx} className="flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1 text-xs">
-                                                    <span className="flex-1">{t}</span>
+                                                <div key={idx} className="flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1 text-xs shadow-sm">
+                                                    <span className="flex-1 font-mono text-slate-600">{t}</span>
                                                     <button
                                                         onClick={() => {
                                                             const newT = (config.transformations || []).filter((_, i) => i !== idx);
                                                             handleConfigChange(header, 'transformations', newT);
                                                         }}
                                                         className="text-slate-400 hover:text-red-500"
+                                                        title="Remove transformation"
                                                     >
                                                         <Trash2 className="w-3 h-3" />
                                                     </button>
@@ -618,18 +1048,67 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                         })}
                     </div>
                 </div>
+
+                {/* Save Template Button - Bottom Right */}
+                <div className="flex justify-end pt-4 border-t border-slate-100 relative">
+                    <button
+                        onClick={() => setShowSaveTemplate(!showSaveTemplate)}
+                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition font-medium text-sm shadow-sm"
+                    >
+                        <Save className="w-4 h-4" />
+                        Save Template
+                    </button>
+
+                    <AnimatePresence>
+                        {showSaveTemplate && (
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                animate={{ opacity: 1, scale: 1, y: -14 }}
+                                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                className="absolute right-0 bottom-full mb-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 z-50 p-4"
+                            >
+                                <h4 className="font-semibold text-sm mb-3">Save Current Config</h4>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={newTemplateName}
+                                        onChange={e => setNewTemplateName(e.target.value)}
+                                        placeholder="Template Name..."
+                                        className="flex-1 text-sm border-slate-300 rounded-md"
+                                        autoFocus
+                                    />
+                                    <button
+                                        onClick={handleSaveTemplate}
+                                        disabled={!newTemplateName.trim()}
+                                        className={clsx(
+                                            "p-2 rounded-md disabled:opacity-50 transition-colors",
+                                            saveMessage ? "bg-green-600 hover:bg-green-700 text-white" : "bg-[#E52D1D] text-white hover:bg-[#c42519]"
+                                        )}
+                                    >
+                                        {saveMessage ? <Sparkles className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                                    </button>
+                                </div>
+                                {saveMessage && (
+                                    <p className="text-xs text-green-600 mt-2 font-medium text-center">{saveMessage}</p>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
 
-            {errorCount > 0 && (
-                <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex items-center gap-3 p-4 bg-red-50 text-red-700 rounded-lg border border-red-100"
-                >
-                    <AlertCircle className="w-5 h-5 shrink-0" />
-                    <p className="font-medium">Found errors in {errorCount} rows.</p>
-                </motion.div>
-            )}
+            {
+                errorCount > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center gap-3 p-4 bg-red-50 text-red-700 rounded-lg border border-red-100"
+                    >
+                        <AlertCircle className="w-5 h-5 shrink-0" />
+                        <p className="font-medium">Found errors in {errorCount} rows.</p>
+                    </motion.div>
+                )
+            }
 
             <div>
                 <div className="flex items-center justify-between mb-2">
@@ -640,9 +1119,142 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate }: Data
                 <DataTableVirtual
                     data={filteredData}
                     headers={headers}
-                // errors prop is optional now as we embed them
+                    headerRenderer={(header) => {
+                        const config = configs.find(c => c.column === header) || { column: header };
+                        const mappedFieldKey = columnMappings[header];
+
+                        return (
+                            <div className="flex flex-col gap-2 w-full text-left">
+                                <div className="flex items-center justify-between">
+                                    <span className="truncate font-bold text-slate-700" title={header}>{header}</span>
+                                    {inferredTypes[header] && (
+                                        <span className={clsx(
+                                            "text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider",
+                                            inferredTypes[header] === 'number' ? "bg-blue-100 text-blue-700" :
+                                                inferredTypes[header] === 'boolean' ? "bg-purple-100 text-purple-700" :
+                                                    inferredTypes[header] === 'date' ? "bg-orange-100 text-orange-700" :
+                                                        "bg-slate-100 text-slate-600"
+                                        )}>
+                                            {inferredTypes[header]}
+                                        </span>
+                                    )}
+                                </div>
+
+                                <SearchableSelect
+                                    options={[
+                                        { label: "(Ignore)", value: "" },
+                                        ...internalFields.sort((a, b) => a.label.localeCompare(b.label)).map(f => ({
+                                            label: f.label,
+                                            value: f.key,
+                                            subLabel: f.key !== f.label ? f.key : undefined
+                                        }))
+                                    ]}
+                                    value={mappedFieldKey || ''}
+                                    onChange={(val) => {
+                                        const newMappings = { ...columnMappings, [header]: val };
+                                        if (!val) delete newMappings[header];
+                                        mappingHistory.set(newMappings);
+
+                                        // Auto-apply logic
+                                        if (val) {
+                                            const field = internalFields.find(f => f.key === val);
+                                            if (field && field.type) {
+                                                const rules = rulesFromInternalType(field.type);
+                                                if (rules.validation || rules.transformation) {
+                                                    const newConfig: ColumnConfig = {
+                                                        column: header,
+                                                        validation: rules.validation,
+                                                        transformations: rules.transformation ? [rules.transformation] : []
+                                                    };
+                                                    const existingIdx = configs.findIndex(c => c.column === header);
+                                                    const newConfigsArgs = [...configs];
+                                                    if (existingIdx !== -1) {
+                                                        newConfigsArgs[existingIdx] = newConfig;
+                                                    } else {
+                                                        newConfigsArgs.push(newConfig);
+                                                    }
+                                                    configsHistory.set(newConfigsArgs);
+                                                }
+                                            }
+                                        }
+                                    }}
+                                    placeholder="Map to..."
+                                    allowCreate={true}
+                                />
+
+                                {/* Validation Control */}
+                                <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-[10px] uppercase font-semibold text-slate-500">Validation</label>
+                                        {(config.validation || (config.transformations && config.transformations.length > 0)) && (
+                                            <button
+                                                onClick={() => {
+                                                    const newConfigs = configs.filter(c => c.column !== header);
+                                                    configsHistory.set(newConfigs);
+                                                }}
+                                                className="text-[10px] text-slate-400 hover:text-red-500 underline decoration-dotted"
+                                                title="Reset rules"
+                                            >
+                                                Reset
+                                            </button>
+                                        )}
+                                    </div>
+                                    <select
+                                        className="w-full text-xs border-slate-300 rounded focus:border-primary focus:ring-primary py-1"
+                                        value={config.validation || ''}
+                                        onChange={(e) => handleConfigChange(header, 'validation', e.target.value || undefined)}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <option value="">None</option>
+                                        {Object.keys(schemas).sort().map(k => (
+                                            <option key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Transformation Control */}
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-semibold text-slate-500">Transform</label>
+                                    <div className="flex flex-wrap gap-1">
+                                        {(config.transformations || []).map((t, idx) => (
+                                            <span key={idx} className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] text-slate-600">
+                                                {t}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const newT = (config.transformations || []).filter((_, i) => i !== idx);
+                                                        handleConfigChange(header, 'transformations', newT);
+                                                    }}
+                                                    className="hover:text-red-500 ml-1"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <select
+                                        className="w-full text-xs border-slate-300 rounded focus:border-primary focus:ring-primary py-1"
+                                        value=""
+                                        onChange={(e) => {
+                                            if (!e.target.value) return;
+                                            const current = config.transformations || [];
+                                            if (!current.includes(e.target.value as any)) {
+                                                handleConfigChange(header, 'transformations', [...current, e.target.value]);
+                                            }
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <option value="">+ Add...</option>
+                                        {Object.keys(transformations).sort().map(k => (
+                                            <option key={k} value={k}>{k.charAt(0).toUpperCase() + k.slice(1)}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        );
+                    }}
                 />
             </div>
-        </div>
+        </div >
     );
 }

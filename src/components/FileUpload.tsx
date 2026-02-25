@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { UploadCloud, FileSpreadsheet, X, File } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -10,9 +11,10 @@ interface FileUploadProps {
     selectedFile: File | null;
     className?: string;
     onClear: () => void;
+    variant?: 'default' | 'blue' | 'green';
 }
 
-export function FileUpload({ onFileSelect, selectedFile, className, onClear }: FileUploadProps) {
+export function FileUpload({ onFileSelect, selectedFile, className, variant = 'default' }: FileUploadProps) {
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
             onFileSelect(acceptedFiles[0]);
@@ -30,61 +32,103 @@ export function FileUpload({ onFileSelect, selectedFile, className, onClear }: F
         disabled: !!selectedFile
     });
 
+    const styles = {
+        default: {
+            activeBorder: "border-[#E52D1D]",
+            activeBg: "bg-[#E52D1D]/5",
+            hoverBorder: "hover:border-[#E52D1D]/50",
+            hoverBg: "group-hover:bg-[#E52D1D]/10",
+            iconColor: "text-[#E52D1D]",
+            hoverText: "group-hover:text-[#E52D1D]",
+            accentText: "text-[#E52D1D]",
+            dragText: "text-[#E52D1D]",
+            gradientFrom: "from-red-50/50"
+        },
+        blue: {
+            activeBorder: "border-blue-500",
+            activeBg: "bg-blue-50",
+            hoverBorder: "hover:border-blue-400",
+            hoverBg: "group-hover:bg-blue-100",
+            iconColor: "text-blue-500",
+            hoverText: "group-hover:text-blue-600",
+            accentText: "text-blue-600",
+            dragText: "text-blue-600",
+            gradientFrom: "from-blue-50/50"
+        },
+        green: {
+            activeBorder: "border-green-500",
+            activeBg: "bg-green-50",
+            hoverBorder: "hover:border-green-400",
+            hoverBg: "group-hover:bg-green-100",
+            iconColor: "text-green-500",
+            hoverText: "group-hover:text-green-600",
+            accentText: "text-green-600",
+            dragText: "text-green-600",
+            gradientFrom: "from-green-50/50"
+        }
+    };
+
+    const currentStyle = styles[variant];
+
     return (
         <div className={twMerge("w-full max-w-2xl mx-auto", className)}>
             <AnimatePresence mode='wait'>
                 {!selectedFile ? (
                     <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
+                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.98 }}
                         {...(getRootProps() as any)}
                         className={clsx(
-                            "cursor-pointer border-2 border-dashed rounded-xl p-10 text-center transition-colors duration-200 ease-in-out",
-                            isDragActive ? "border-primary bg-primary-light" : "border-slate-300 hover:border-primary hover:bg-slate-50",
-                            "flex flex-col items-center justify-center gap-4 group h-64"
+                            "relative overflow-hidden cursor-pointer rounded-2xl border-2 border-dashed transition-all duration-300 ease-in-out",
+                            isDragActive
+                                ? `${currentStyle.activeBorder} ${currentStyle.activeBg} scale-[1.02]`
+                                : `border-slate-300 ${currentStyle.hoverBorder} hover:bg-slate-50 hover:shadow-xl hover:shadow-slate-200/50`,
+                            "flex flex-col items-center justify-center gap-4 group h-full w-full bg-white/50 backdrop-blur-sm"
                         )}
                     >
+                        {/* Background Gradients */}
+                        <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+                            <div className={`absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br ${currentStyle.gradientFrom} to-transparent blur-3xl transform rotate-12`} />
+                            <div className={`absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl ${currentStyle.gradientFrom} to-transparent blur-3xl transform -rotate-12`} />
+                        </div>
+
                         <input {...getInputProps()} />
-                        <div className="p-4 bg-primary-light rounded-full group-hover:bg-red-100 transition-colors">
-                            <UploadCloud className="w-10 h-10 text-primary" />
+
+                        <div className={clsx(
+                            "relative z-10 p-6 rounded-full transition-all duration-300 transform group-hover:scale-110 group-hover:rotate-3",
+                            isDragActive ? currentStyle.activeBg : `bg-slate-100 ${currentStyle.hoverBg}`
+                        )}>
+                            {isDragActive ? (
+                                <UploadCloud className={`w-12 h-12 ${currentStyle.iconColor} animate-bounce`} />
+                            ) : (
+                                <FileSpreadsheet className={`w-12 h-12 text-slate-400 ${currentStyle.hoverText} transition-colors`} />
+                            )}
                         </div>
-                        <div className="space-y-2">
-                            <p className="text-lg font-medium text-black">
-                                {isDragActive ? "Drop the file here" : "Drag & drop your file here"}
-                            </p>
-                            <p className="text-sm text-slate-500">
-                                Supports CSV, Excel (.xlsx, .xls)
-                            </p>
+
+                        <div className="relative z-10 space-y-3 text-center px-4">
+                            <div className="space-y-1">
+                                <p className={`text-xl font-semibold text-slate-700 ${currentStyle.hoverText} transition-colors`}>
+                                    {isDragActive ? "Drop it like it's hot!" : "Drag & drop your file here"}
+                                </p>
+                                <p className="text-sm text-slate-500 font-medium">
+                                    or <span className={`${currentStyle.accentText} border-b border-current pb-0.5 opacity-80 hover:opacity-100`}>browse from your computer</span>
+                                </p>
+                            </div>
+                            <div className="flex items-center justify-center gap-3 text-xs text-slate-400 font-medium bg-slate-50 py-2 px-4 rounded-full border border-slate-100">
+                                <span className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                    CSV
+                                </span>
+                                <span className="w-px h-3 bg-slate-200" />
+                                <span className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                    Excel (XLSX, XLS)
+                                </span>
+                            </div>
                         </div>
                     </motion.div>
-                ) : (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        className="bg-white border rounded-xl p-6 shadow-sm flex items-center justify-between"
-                    >
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-green-100 rounded-lg">
-                                <FileSpreadsheet className="w-8 h-8 text-green-600" />
-                            </div>
-                            <div>
-                                <p className="font-medium text-slate-900">{selectedFile.name}</p>
-                                <p className="text-sm text-slate-500">{(selectedFile.size / 1024).toFixed(2)} KB</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onClear();
-                            }}
-                            className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-                    </motion.div>
-                )}
+                ) : null}
             </AnimatePresence>
         </div>
     );

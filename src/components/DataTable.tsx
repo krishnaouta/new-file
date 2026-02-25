@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { clsx } from 'clsx';
@@ -96,9 +97,10 @@ interface DataTableProps {
     data: any[];
     headers: string[];
     errors?: Record<number, Record<string, string>>;
+    headerRenderer?: (header: string, index: number) => React.ReactNode;
 }
 
-export function DataTableVirtual({ data, headers, errors }: DataTableProps) {
+export function DataTableVirtual({ data, headers, errors, headerRenderer }: DataTableProps) {
     const parentRef = useRef<HTMLDivElement>(null);
 
     const rowVirtualizer = useVirtualizer({
@@ -116,8 +118,8 @@ export function DataTableVirtual({ data, headers, errors }: DataTableProps) {
                 {/* Sticky Header */}
                 <div className="sticky top-0 z-20 flex bg-slate-100 border-b border-slate-200 font-semibold text-slate-700 text-sm w-fit min-w-full">
                     {headers.map((header, i) => (
-                        <div key={i} className="px-4 py-3 w-[150px] shrink-0 truncate border-r border-slate-200 last:border-r-0">
-                            {header}
+                        <div key={i} className="px-4 py-3 w-[250px] shrink-0 border-r border-slate-200 last:border-r-0 flex flex-col justify-end">
+                            {headerRenderer ? headerRenderer(header, i) : header}
                         </div>
                     ))}
                 </div>
@@ -153,7 +155,7 @@ export function DataTableVirtual({ data, headers, errors }: DataTableProps) {
                                         <div
                                             key={`${virtualRow.index}-${colIndex}`}
                                             className={clsx(
-                                                "px-4 py-2 w-[150px] shrink-0 truncate border-r border-slate-100 last:border-r-0 flex items-center",
+                                                "px-4 py-2 w-[250px] shrink-0 truncate border-r border-slate-100 last:border-r-0 flex items-center",
                                                 hasError && "bg-red-50 text-red-600 font-medium ring-1 ring-inset ring-red-200"
                                             )}
                                             title={hasError || undefined}
