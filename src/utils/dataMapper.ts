@@ -122,7 +122,7 @@ export const internalFields: InternalField[] = [
     { key: 'LastApprovedPSAWithin36MonthsIndicator', label: 'LastApprovedPSAWithin36MonthsIndicator', type: 'Boolean' },
     { key: 'ServicerLoanIdentifier', label: 'ServicerLoanIdentifier', type: 'Numeric' },
     { key: 'FannieMaeServicerIdentifier', label: 'FannieMaeServicerIdentifier', type: 'Numeric' },
-    { key: 'WorkoutTypeCode', label: 'WorkoutTypeCode', type: 'List' },
+    { key: 'WorkoutTypeCode', label: 'WorkoutTypeCode', type: 'LIST' },
     { key: 'UseAssociatedTrialIndicator', label: 'UseAssociatedTrialIndicator', type: 'Boolean' },
     { key: 'CampaignTrialPeriodLength', label: 'CampaignTrialPeriodLength', type: 'Numeric' },
     { key: 'RequestID', label: 'RequestID', type: 'String' },

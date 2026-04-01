@@ -5,17 +5,27 @@ import { parseFile, ParsedData } from './utils/fileParser';
 import { Sparkles, Loader2, FileSpreadsheet, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { InternalField, internalFields as defaultInternalFields } from './utils/dataMapper';
+import { useHistory } from './hooks/useHistory';
 
 function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [data, setData] = useState<ParsedData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [labelsFile, setLabelsFile] = useState<File | null>(null);
   const [customFields, setCustomFields] = useState<InternalField[] | null>(null);
 
+  // Structural history — tracks every Split and Combine as an undoable snapshot
+  const dataHistory = useHistory<ParsedData | null>(null);
+  const data = dataHistory.state;
+
   const handleDataUpdate = (newData: Record<string, unknown>[], newHeaders: string[]) => {
-    setData(prev => prev ? { ...prev, data: newData, headers: newHeaders } : null);
+    dataHistory.set({ data: newData as any[], headers: newHeaders });
+  };
+
+  // Keep setData available for the initial file load (not tracked in history intentionally —
+  // undoing back before the file was loaded would clear the workspace)
+  const setData = (parsed: ParsedData | null) => {
+    dataHistory.clear(parsed);
   };
 
 
@@ -153,7 +163,7 @@ function App() {
               </motion.div>
             )}
             {!selectedFile && !labelsFile && (
-              <a href="#" className="text-sm font-medium text-primary hover:text-primary-hover">
+              <a href="#!" className="text-sm font-medium text-primary hover:text-primary-hover" onClick={(e) => e.preventDefault()}>
                 Documentation
               </a>
             )}
@@ -164,36 +174,32 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 
 
-        <section className={!selectedFile ? "min-h-[calc(100vh-12rem)] flex flex-col items-center justify-center p-8" : "mb-8 transition-all duration-500 ease-in-out"}>
+        <section className={!selectedFile ? "min-h-[calc(100vh-12rem)] flex flex-col items-center justify-center p-4 md:p-8" : "mb-8 transition-all duration-500 ease-in-out"}>
           {!selectedFile && (
             <div className="text-center mb-12 space-y-4 max-w-2xl mx-auto">
               <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
                 Data Processing <span className="text-[#E52D1D]">Workflow</span>
               </h1>
               <p className="text-lg text-slate-600 leading-relaxed">
-                {!labelsFile && (
-                  <>
-                    Step 1: Upload your Labels File to define data types.<br />
-                  </>
-                )}
-                Step 2: Upload your Data File to clean and process.
+                Upload your data file to start cleaning and processing. You can also upload a labels template to map columns automatically.
               </p>
             </div>
           )}
 
-          {!labelsFile ? (
-            <div className="w-full max-w-4xl mx-auto">
-              <div className="bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
+          {!selectedFile && (
+            <div className="w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Labels Upload Card */}
+              <div className="bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden flex flex-col">
                 <div className="bg-slate-50 border-b border-slate-200 px-6 py-4">
                   <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                     <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-bold">1</span>
-                    Upload Labels File
+                    Labels Template (Optional)
                   </h3>
                   <p className="text-sm text-slate-500 mt-1 pl-8">
                     Upload excel containing <span className="font-semibold text-blue-700 bg-blue-50 px-1 rounded">'Internal labels'</span> and <span className="font-semibold text-blue-700 bg-blue-50 px-1 rounded">'DataType'</span> columns
                   </p>
                 </div>
-                <div className="p-8">
+                <div className="p-8 flex-1">
                   <FileUpload
                     onFileSelect={handleLabelsFileSelect}
                     selectedFile={labelsFile}
@@ -203,48 +209,28 @@ function App() {
                   />
                 </div>
               </div>
-            </div>
-          ) : (
-            !selectedFile && (
-              <div className="w-full max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
-                  <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center">
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600 text-xs font-bold">2</span>
-                        Upload Data File
-                      </h3>
-                      <p className="text-sm text-slate-500 mt-1 pl-8">Step 2: Upload your Data File to clean and process.</p>
-                    </div>
-                    <button
-                      onClick={handleClearLabels}
-                      className="text-xs text-slate-400 hover:text-red-500 underline"
-                    >
-                      Reselect Labels
-                    </button>
-                  </div>
-                  <div className="p-8">
-                    <FileUpload
-                      onFileSelect={handleFileSelect}
-                      selectedFile={selectedFile}
-                      onClear={handleClear}
-                      variant="green"
-                      className="h-64 border-green-200 bg-green-50/30 hover:bg-green-50/50"
-                    />
-                  </div>
+              
+              {/* Data Upload Card */}
+              <div className="bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden flex flex-col">
+                <div className="bg-slate-50 border-b border-slate-200 px-6 py-4">
+                  <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600 text-xs font-bold">2</span>
+                    Upload Data File
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-1 pl-8">
+                    Step 2: Upload your main Data File to clean and process.
+                  </p>
+                </div>
+                <div className="p-8 flex-1">
+                  <FileUpload
+                    onFileSelect={handleFileSelect}
+                    selectedFile={selectedFile}
+                    onClear={handleClear}
+                    variant="green"
+                    className="h-64 border-green-200 bg-green-50/30 hover:bg-green-50/50"
+                  />
                 </div>
               </div>
-            )
-          )}
-
-          {/* Hidden original logic to preserve layout if needed, effectively validating if layout logic remains consistent */}
-          {selectedFile && (
-            <div className="hidden">
-              <FileUpload
-                onFileSelect={handleFileSelect}
-                selectedFile={selectedFile}
-                onClear={handleClear}
-              />
             </div>
           )}
         </section>
@@ -309,6 +295,10 @@ function App() {
                 headers={data.headers}
                 onDataUpdate={handleDataUpdate}
                 internalFields={customFields || defaultInternalFields}
+                onStructureUndo={dataHistory.undo}
+                onStructureRedo={dataHistory.redo}
+                canStructureUndo={dataHistory.canUndo}
+                canStructureRedo={dataHistory.canRedo}
               />
             </motion.div>
           )}

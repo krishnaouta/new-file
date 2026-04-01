@@ -14,7 +14,7 @@ interface FileUploadProps {
     variant?: 'default' | 'blue' | 'green';
 }
 
-export function FileUpload({ onFileSelect, selectedFile, className, variant = 'default' }: FileUploadProps) {
+export function FileUpload({ onFileSelect, selectedFile, className, onClear, variant = 'default' }: FileUploadProps) {
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
             onFileSelect(acceptedFiles[0]);
@@ -128,7 +128,31 @@ export function FileUpload({ onFileSelect, selectedFile, className, variant = 'd
                             </div>
                         </div>
                     </motion.div>
-                ) : null}
+                ) : (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        className={clsx(
+                            "relative rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-3 h-full w-full",
+                            variant === 'blue' ? "border-blue-200 bg-blue-50/50" :
+                            variant === 'green' ? "border-green-200 bg-green-50/50" :
+                            "border-slate-200 bg-slate-50/50"
+                        )}
+                    >
+                        <FileSpreadsheet className={clsx("w-10 h-10", currentStyle.iconColor)} />
+                        <div className="text-center">
+                            <p className="text-sm font-semibold text-slate-700 truncate max-w-[200px]" title={selectedFile.name}>{selectedFile.name}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{(selectedFile.size / 1024).toFixed(1)} KB</p>
+                        </div>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onClear(); }}
+                            className="mt-1 px-3 py-1 text-xs font-medium text-slate-500 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-full transition-colors bg-white"
+                        >
+                            Remove file
+                        </button>
+                    </motion.div>
+                )}
             </AnimatePresence>
         </div>
     );

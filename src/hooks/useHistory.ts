@@ -48,7 +48,8 @@ export function useHistory<T>(initialPresent: T) {
 
     const set = useCallback((newPresent: T) => {
         setState(currentState => {
-            if (currentState.present === newPresent) return currentState;
+            // Use JSON comparison to avoid spurious history entries for equivalent objects/arrays
+            if (JSON.stringify(currentState.present) === JSON.stringify(newPresent)) return currentState;
 
             return {
                 past: [...currentState.past, currentState.present],
