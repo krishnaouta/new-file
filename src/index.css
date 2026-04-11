@@ -1,1 +1,93 @@
 @import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════
+   OUTAMATE BRAND DESIGN SYSTEM
+   Primary Colors:  Tangerine · Black · White
+   Secondary Colors: Orange · Crimson
+   Font: Montserrat
+═══════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Primary Colors ──────────────────────────────── */
+  --color-tangerine:       #E52D1D;   /* Energy, innovation, forward momentum */
+  --color-tangerine-light: #FDECEA;   /* Soft tint for backgrounds / hover surfaces */
+  --color-tangerine-hover: #C4220F;   /* Pressed / active state */
+
+  --color-black:           #000000;   /* Professionalism, authority, clarity */
+  --color-white:           #FFFFFF;   /* Clarity, openness, simplicity */
+
+  /* ── Secondary Colors ────────────────────────────── */
+  --color-orange:          #E67E4E;   /* Creativity, inclusiveness, approachability */
+  --color-orange-light:    #FDF0E8;
+  --color-orange-hover:    #D06B38;
+
+  --color-crimson:         #B4142D;   /* Reliability, strength, confidence */
+  --color-crimson-light:   #F9E0E4;
+  --color-crimson-hover:   #8E0D22;
+
+  /* ── Semantic aliases ────────────────────────────── */
+  --color-primary:         var(--color-tangerine);
+  --color-primary-hover:   var(--color-crimson);
+  --color-primary-light:   var(--color-tangerine-light);
+
+  /* ── Brand Font ──────────────────────────────────── */
+  --font-brand: 'Montserrat', sans-serif;
+}
+
+/* Base resets */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: var(--font-brand);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-white);
+  color: var(--color-black);
+}
+
+/* Brand selection highlight */
+::selection {
+  background-color: var(--color-tangerine-light);
+  color: var(--color-tangerine);
+}
+
+/* ─── Accessible Focus Ring (WCAG 2.4.7) ───────────── */
+/* Visible only for keyboard navigation, not click */
+:focus-visible {
+  outline: 2.5px solid var(--color-tangerine);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Reset default focus outline only when JS focus-visible is polyfilled */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ─── Skip-to-Main Link (WCAG 2.4.1) ───────────────── */
+.skip-to-main {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  z-index: 9999;
+  padding: 0.5rem 1rem;
+  background: var(--color-tangerine);
+  color: white;
+  font-weight: 700;
+  font-size: 0.875rem;
+  border-radius: 0 0 8px 8px;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-to-main:focus {
+  top: 0;
+  outline: 2.5px solid white;
+  outline-offset: 2px;
+}
+
+/* ─── Smooth scroll ─────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}

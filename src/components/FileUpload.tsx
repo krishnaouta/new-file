@@ -11,7 +11,7 @@ interface FileUploadProps {
     selectedFile: File | null;
     className?: string;
     onClear: () => void;
-    variant?: 'default' | 'blue' | 'green';
+    variant?: 'default' | 'orange' | 'crimson';
 }
 
 export function FileUpload({ onFileSelect, selectedFile, className, onClear, variant = 'default' }: FileUploadProps) {
@@ -42,36 +42,36 @@ export function FileUpload({ onFileSelect, selectedFile, className, onClear, var
             hoverText: "group-hover:text-[#E52D1D]",
             accentText: "text-[#E52D1D]",
             dragText: "text-[#E52D1D]",
-            gradientFrom: "from-red-50/50"
+            gradientFrom: "from-[#FDECEA]/50"
         },
-        blue: {
-            activeBorder: "border-blue-500",
-            activeBg: "bg-blue-50",
-            hoverBorder: "hover:border-blue-400",
-            hoverBg: "group-hover:bg-blue-100",
-            iconColor: "text-blue-500",
-            hoverText: "group-hover:text-blue-600",
-            accentText: "text-blue-600",
-            dragText: "text-blue-600",
-            gradientFrom: "from-blue-50/50"
+        orange: {
+            activeBorder: "border-[#E67E4E]",
+            activeBg: "bg-[#FDF0E8]",
+            hoverBorder: "hover:border-[#E67E4E]/60",
+            hoverBg: "group-hover:bg-[#FDF0E8]",
+            iconColor: "text-[#E67E4E]",
+            hoverText: "group-hover:text-[#D06B38]",
+            accentText: "text-[#D06B38]",
+            dragText: "text-[#D06B38]",
+            gradientFrom: "from-[#FDF0E8]/50"
         },
-        green: {
-            activeBorder: "border-green-500",
-            activeBg: "bg-green-50",
-            hoverBorder: "hover:border-green-400",
-            hoverBg: "group-hover:bg-green-100",
-            iconColor: "text-green-500",
-            hoverText: "group-hover:text-green-600",
-            accentText: "text-green-600",
-            dragText: "text-green-600",
-            gradientFrom: "from-green-50/50"
+        crimson: {
+            activeBorder: "border-[#B4142D]",
+            activeBg: "bg-[#F9E0E4]",
+            hoverBorder: "hover:border-[#B4142D]/60",
+            hoverBg: "group-hover:bg-[#F9E0E4]",
+            iconColor: "text-[#B4142D]",
+            hoverText: "group-hover:text-[#8E0D22]",
+            accentText: "text-[#B4142D]",
+            dragText: "text-[#8E0D22]",
+            gradientFrom: "from-[#F9E0E4]/50"
         }
     };
 
     const currentStyle = styles[variant];
 
     return (
-        <div className={twMerge("w-full max-w-2xl mx-auto", className)}>
+        <div className={twMerge("w-full", className)}>
             <AnimatePresence mode='wait'>
                 {!selectedFile ? (
                     <motion.div
@@ -135,9 +135,9 @@ export function FileUpload({ onFileSelect, selectedFile, className, onClear, var
                         exit={{ opacity: 0, scale: 0.98 }}
                         className={clsx(
                             "relative rounded-2xl border-2 border-dashed flex flex-col items-center justify-center gap-3 h-full w-full",
-                            variant === 'blue' ? "border-blue-200 bg-blue-50/50" :
-                            variant === 'green' ? "border-green-200 bg-green-50/50" :
-                            "border-slate-200 bg-slate-50/50"
+                            variant === 'orange'  ? "border-[#E67E4E]/40 bg-[#FDF0E8]/50" :
+                            variant === 'crimson' ? "border-[#B4142D]/30 bg-[#F9E0E4]/40" :
+                            "border-[#E52D1D]/20 bg-[#FDECEA]/30"
                         )}
                     >
                         <FileSpreadsheet className={clsx("w-10 h-10", currentStyle.iconColor)} />

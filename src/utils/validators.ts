@@ -53,6 +53,29 @@ export const transformations = {
             .join(' ');
     },
 
+    // Sentence case: capitalize only the first letter of the entire string
+    sentenceCase: (value: any) => {
+        if (typeof value !== 'string' || !value) return value;
+        const trimmed = value.trim();
+        return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+    },
+
+    // Extract only numeric characters (digits and decimal point) from a string
+    // e.g. "Loan#00123" → "00123", "$1,234.56" → "1234.56"
+    extractNumbers: (value: any) => {
+        if (value === null || value === undefined || value === '') return value;
+        const s = String(value);
+        const extracted = s.replace(/[^\d.]/g, '');
+        return extracted === '' ? value : extracted;
+    },
+
+    // Remove all non-alphanumeric characters (keeps letters, digits, spaces)
+    // e.g. "Hello, World!" → "Hello World"
+    removeSpecialChars: (value: any) => {
+        if (typeof value !== 'string' || !value) return value;
+        return value.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+    },
+
     time: (value: any) => {
         const d = new Date(value);
         if (isNaN(d.getTime())) return value;
@@ -160,11 +183,28 @@ export type ValidationRule = keyof typeof schemas;
 export type TransformationType = keyof typeof transformations;
 
 // Human-readable labels for each transformation key — used by the UI dropdown and applied chips
+// Human-readable labels for each validation schema key — used by the UI dropdown
+export const VALIDATION_LABELS: Record<ValidationRule, string> = {
+    email:      'Email Address',
+    phone:      'Phone Number',
+    date:       'Date',
+    number:     'Number',
+    required:   'Required (not empty)',
+    currency:   'Currency Amount',
+    percentage: 'Percentage',
+    int:        'Integer',
+    float:      'Decimal Number',
+    boolean:    'Boolean (true / false)',
+    string:     'Text / String',
+    list:       'List / Array',
+};
+
 export const TRANSFORMATION_LABELS: Record<TransformationType, string> = {
     trim:               'Trim Whitespace',
     lowercase:          'Lowercase',
     uppercase:          'Uppercase',
-    capitalize:         'Title Case',
+    capitalize:         'Capitalize (Title Case)',
+    sentenceCase:       'Sentence Case (First Letter Only)',
     number:             'To Number',
     boolean:            'To Boolean',
     date:               'To Date',
@@ -177,6 +217,8 @@ export const TRANSFORMATION_LABELS: Record<TransformationType, string> = {
     nullifyEmpty:       'Nullify Empty / N/A',
     removeCommas:       'Remove Commas',
     collapseWhitespace: 'Collapse Whitespace',
+    extractNumbers:     'Extract Numbers Only',
+    removeSpecialChars: 'Remove Special Characters',
 };
 
 export interface ColumnConfig {
