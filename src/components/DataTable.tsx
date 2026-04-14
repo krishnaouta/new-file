@@ -23,17 +23,17 @@ export function DataTableVirtual({ data, headers, errors, headerRenderer }: Data
     if (data.length === 0) return null;
 
     return (
-        <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm h-[580px]">
-            <div ref={parentRef} className="overflow-auto h-full w-full relative bg-white">
+        <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm h-[560px]">
+            <div ref={parentRef} className="overflow-auto h-full w-full relative bg-white no-scrollbar">
                 {/* Sticky Header — Brand Black */}
-                <div className="sticky top-0 z-20 flex bg-black border-b border-white/10 font-semibold text-white text-xs w-fit min-w-full">
+                <div className="sticky top-0 z-20 flex bg-[#111111] border-b border-white/10 font-semibold text-white text-xs w-fit min-w-full">
                     {headers.map((header, i) => (
                         <div
                             key={i}
-                            className="px-4 py-3 w-[220px] shrink-0 border-r border-white/10 last:border-r-0 flex flex-col justify-center"
+                            className="px-4 py-2.5 w-[200px] min-w-[140px] shrink-0 border-r border-white/[0.08] last:border-r-0 flex flex-col justify-center"
                         >
                             {headerRenderer ? headerRenderer(header, i) : (
-                                <span className="font-bold text-white uppercase tracking-wider text-[11px] truncate">
+                                <span className="font-bold text-white/80 uppercase tracking-widest text-[10px] truncate">
                                     {header}
                                 </span>
                             )}
@@ -76,7 +76,7 @@ export function DataTableVirtual({ data, headers, errors, headerRenderer }: Data
                                         <div
                                             key={`${virtualRow.index}-${colIndex}`}
                                             className={clsx(
-                                                "px-4 py-2 w-[220px] shrink-0 truncate border-r border-slate-100 last:border-r-0 flex items-center text-slate-700 text-sm",
+                                                "px-4 py-2.5 w-[200px] min-w-[140px] shrink-0 truncate border-r border-slate-100 last:border-r-0 flex items-center text-slate-700 text-sm",
                                                 hasError && "bg-[#F9E0E4]/60 text-[#B4142D] font-semibold ring-1 ring-inset ring-[#B4142D]/20"
                                             )}
                                             title={hasError || undefined}

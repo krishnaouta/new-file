@@ -459,7 +459,7 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate, intern
     return (
         <div className="space-y-6">
             {/* Wizard Navigation — Premium Stepper */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-8 py-5 mb-2">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-4 mb-2">
                 <div className="flex items-center w-full max-w-4xl mx-auto">
                     {/* Step 1 */}
                     <div className="flex flex-col items-center gap-1.5">
@@ -520,7 +520,7 @@ export function DataProcessor({ data: initialData, headers, onDataUpdate, intern
 
             {/* Configuration Toolbar */}
             {wizardStep !== 2 && (
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
 
                 {/* Combine Panel */}
                 <AnimatePresence>

@@ -108,11 +108,11 @@ export function FileUpload({ onFileSelect, selectedFile, className, onClear, var
 
                         <div className="relative z-10 space-y-3 text-center px-4">
                             <div className="space-y-1">
-                                <p className={`text-xl font-semibold text-slate-700 ${currentStyle.hoverText} transition-colors`}>
-                                    {isDragActive ? "Drop it like it's hot!" : "Drag & drop your file here"}
+                                <p className={`text-base font-bold text-slate-700 ${currentStyle.hoverText} transition-colors`}>
+                                    {isDragActive ? "Drop it here!" : "Drag & drop your file"}
                                 </p>
-                                <p className="text-sm text-slate-500 font-medium">
-                                    or <span className={`${currentStyle.accentText} border-b border-current pb-0.5 opacity-80 hover:opacity-100`}>browse from your computer</span>
+                                <p className="text-sm text-slate-500">
+                                    or <span className={`${currentStyle.accentText} font-semibold border-b border-current pb-0.5 opacity-80 hover:opacity-100`}>browse files</span>
                                 </p>
                             </div>
                             <div className="flex items-center justify-center gap-3 text-xs text-slate-400 font-medium bg-slate-50 py-2 px-4 rounded-full border border-slate-100">

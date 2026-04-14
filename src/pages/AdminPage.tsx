@@ -233,7 +233,7 @@ export function AdminPage({ onNavigate, onLoadTemplate }: AdminPageProps) {
       variants={stagger}
       initial="hidden"
       animate="show"
-      className="space-y-7 max-w-4xl"
+      className="space-y-6 w-full"
     >
       {/* ── Page Header ── */}
       <motion.div variants={fadeUp}>
@@ -271,7 +271,7 @@ export function AdminPage({ onNavigate, onLoadTemplate }: AdminPageProps) {
                   onChange={e => setSearch(e.target.value)}
                   className="pl-8 pr-4 py-2 text-xs font-medium border border-slate-200 rounded-lg
                              focus:outline-none focus:ring-2 focus:ring-[#E52D1D]/30 focus:border-[#E52D1D]/50
-                             bg-slate-50 text-slate-700 placeholder:text-slate-300 w-48"
+                             bg-slate-50 text-slate-700 placeholder:text-slate-400 w-48"
                 />
               </div>
             )}

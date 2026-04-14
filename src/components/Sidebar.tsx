@@ -114,7 +114,7 @@ export function Sidebar({ collapsed, onToggle, currentPage, onNavigate }: Sideba
           onClick={onToggle}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg
-                     text-white/25 hover:text-white/60 hover:bg-white/[0.06]
+                     text-white/40 hover:text-white/70 hover:bg-white/[0.06]
                      transition-all duration-150"
         >
           {collapsed ? (
@@ -159,7 +159,7 @@ function NavButton({
           'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 text-left',
           active
             ? 'bg-[#E52D1D] text-white shadow-lg shadow-[#E52D1D]/20'
-            : 'text-white/50 hover:text-white hover:bg-white/[0.08]',
+            : 'text-white/65 hover:text-white hover:bg-white/[0.08]',
         ].join(' ')}
       >
         <Icon className="w-[18px] h-[18px] shrink-0" aria-hidden="true" />

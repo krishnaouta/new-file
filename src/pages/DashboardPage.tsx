@@ -83,18 +83,18 @@ export function DashboardPage({ currentFile, rowCount, onNavigate }: DashboardPa
       variants={stagger}
       initial="hidden"
       animate="show"
-      className="space-y-7 max-w-5xl"
+      className="space-y-6 w-full"
     >
       {/* ── Welcome ── */}
-      <motion.div variants={fadeUp} className="flex items-start justify-between gap-4 flex-wrap">
+      <motion.div variants={fadeUp} className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-1.5">
             {today}
           </p>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">
             Welcome back
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 mt-2">
             Your DataProcessor overview — pick up where you left off.
           </p>
         </div>
@@ -109,7 +109,7 @@ export function DashboardPage({ currentFile, rowCount, onNavigate }: DashboardPa
       </motion.div>
 
       {/* ── Stats Row ── */}
-      <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           label="Saved Templates"
           value={String(templates.length)}
@@ -145,7 +145,7 @@ export function DashboardPage({ currentFile, rowCount, onNavigate }: DashboardPa
       </motion.div>
 
       {/* ── Quick Actions ── */}
-      <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <motion.div variants={fadeUp} className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ActionCard
           title="Start Processing"
           desc="Upload a new CSV or Excel file, apply a labels template and begin mapping columns."
@@ -173,7 +173,7 @@ export function DashboardPage({ currentFile, rowCount, onNavigate }: DashboardPa
         variants={fadeUp}
         className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm"
       >
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-6">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-5">
           How It Works
         </p>
         <div className="flex items-start gap-3">
@@ -335,10 +335,10 @@ function StatCard({
       whileHover={{ y: -2 }}
       transition={{ duration: 0.15 }}
       onClick={onClick}
-      className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm text-left w-full
+      className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm text-left w-full
                  hover:shadow-md hover:border-slate-300 transition-all duration-150"
     >
-      <div className="mb-3">
+      <div className="mb-4">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center"
           style={{ backgroundColor: iconBg }}
@@ -347,7 +347,7 @@ function StatCard({
         </div>
       </div>
       <p
-        className={`text-lg font-extrabold text-slate-900 leading-tight ${
+        className={`text-xl font-extrabold text-slate-900 leading-tight ${
           truncate ? 'truncate' : ''
         }`}
       >

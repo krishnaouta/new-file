@@ -37,19 +37,19 @@ export function DataQualityDashboard({
     const maxErrorCount = Math.max(...errorsByColumn.map(([, c]) => c), 1);
 
     const scoreColor =
-        healthScore >= 90 ? '#E52D1D' :   // tangerine — excellent
-        healthScore >= 70 ? '#E67E4E' :   // orange — good
-        '#B4142D';                         // crimson — needs attention
+        healthScore >= 90 ? '#10B981' :   // emerald — excellent
+        healthScore >= 70 ? '#F59E0B' :   // amber — good
+        '#EF4444';                         // red — needs attention
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             {/* Header bar */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/60">
-                <h3 className="text-base font-bold text-slate-800 flex items-center gap-2.5 tracking-tight">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/40">
+                <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2.5 tracking-tight uppercase tracking-[0.05em]">
                     <span className="flex items-center justify-center w-7 h-7 bg-[#E52D1D]/10 rounded-lg">
-                        <Database className="w-4 h-4 text-[#E52D1D]" />
+                        <Database className="w-3.5 h-3.5 text-[#E52D1D]" />
                     </span>
-                    Data Quality Overview
+                    Data Quality
                 </h3>
                 <label
                     className="flex items-center gap-3 cursor-pointer select-none group"

@@ -174,7 +174,7 @@ function App() {
         {/* ── Header ── */}
         <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 shadow-sm" role="banner">
           <div className="h-1 w-full bg-gradient-to-r from-[#B4142D] via-[#E52D1D] to-[#E67E4E]" aria-hidden="true" />
-          <div className="px-6 lg:px-8">
+          <div className="px-6 lg:px-10">
             <div className="h-[72px] flex items-center justify-between gap-4">
 
               {/* Breadcrumb */}
@@ -245,7 +245,7 @@ function App() {
         </header>
 
         {/* ═══════════════ MAIN ═══════════════ */}
-        <main id="main-content" className="flex-1 px-6 lg:px-8 py-8">
+        <main id="main-content" className="flex-1 px-6 lg:px-10 pt-7 pb-16 lg:pt-8">
 
           {/* ── Loading overlay ── */}
           <AnimatePresence>
@@ -292,24 +292,24 @@ function App() {
                 <motion.div
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="max-w-4xl mx-auto"
+                  className="w-full"
                 >
-                  <div className="text-center mb-10">
+                  <div className="mb-8">
                     <div className="inline-flex items-center gap-2 bg-[#FDECEA] border border-[#E52D1D]/20 rounded-full px-4 py-1.5 mb-4">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#E52D1D] animate-pulse" />
                       <span className="text-xs font-bold text-[#E52D1D] tracking-widest uppercase">
                         Step 1 of 3
                       </span>
                     </div>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+                    <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">
                       Upload Your Files
                     </h1>
-                    <p className="text-slate-500 mt-2 text-sm max-w-md mx-auto">
+                    <p className="text-slate-500 mt-1.5 text-sm">
                       Upload a data file to process. Add a labels template to auto-map columns.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
                     {/* Labels Upload Card */}
                     <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/60 border border-slate-200 overflow-hidden flex flex-col
                                     group hover:shadow-xl hover:border-[#E67E4E]/30 transition-all duration-300">
@@ -374,22 +374,22 @@ function App() {
                 <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
                   {data ? (
                     <>
-                      <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
                         <div>
-                          <h2 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
                             Data Workspace
-                            <span className="text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
+                            <span className="text-xs font-bold text-slate-400 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full">
                               {data.data.length.toLocaleString()} rows
                             </span>
                           </h2>
-                          <p className="text-sm text-slate-500 mt-0.5">
+                          <p className="text-sm text-slate-500 mt-1">
                             Map, transform and validate your columns below.
                           </p>
                         </div>
                         <button
                           onClick={handleClear}
                           aria-label="Clear and start over"
-                          className="px-5 py-2.5 text-sm font-bold text-[#E52D1D] bg-white border-2 border-[#E52D1D]
+                          className="shrink-0 px-4 py-2 text-sm font-bold text-[#E52D1D] bg-white border-2 border-[#E52D1D]
                                      rounded-xl hover:bg-[#E52D1D] hover:text-white transition-all shadow-sm"
                         >
                           ↩ Start Over
@@ -410,17 +410,17 @@ function App() {
                     </>
                   ) : (
                     /* Empty state — no file loaded */
-                    <div className="max-w-md mx-auto text-center py-20">
-                      <div className="w-16 h-16 rounded-2xl bg-[#FDECEA] flex items-center justify-center mx-auto mb-5">
-                        <FileSpreadsheet className="w-8 h-8 text-[#E52D1D]" aria-hidden="true" />
+                    <div className="max-w-md mx-auto text-center py-16">
+                      <div className="w-16 h-16 rounded-2xl bg-[#FDECEA] flex items-center justify-center mx-auto mb-4">
+                        <FileSpreadsheet className="w-7 h-7 text-[#E52D1D]" aria-hidden="true" />
                       </div>
-                      <h2 className="text-lg font-extrabold text-slate-800 mb-2">No file loaded</h2>
-                      <p className="text-sm text-slate-500 mb-6">
+                      <h2 className="text-xl font-extrabold text-slate-800 mb-1.5">No file loaded</h2>
+                      <p className="text-sm text-slate-500 mb-6 leading-relaxed">
                         Upload a data file first to start mapping and processing columns.
                       </p>
                       <button
                         onClick={() => navigate('upload')}
-                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#E52D1D] text-white text-sm font-bold rounded-xl hover:bg-[#C4220F] transition-colors shadow-md shadow-[#E52D1D]/20"
+                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#E52D1D] text-white text-sm font-bold rounded-xl hover:bg-[#C4220F] transition-colors shadow-md shadow-[#E52D1D]/20"
                       >
                         <ChevronRight className="w-4 h-4" />
                         Go to File Upload

@@ -96,7 +96,7 @@ export function MigrationPage({ data, headers, selectedFile, onNavigate }: Migra
       variants={stagger}
       initial="hidden"
       animate="show"
-      className="space-y-7 max-w-4xl"
+      className="space-y-6 w-full"
     >
       {/* ── Page Header ── */}
       <motion.div variants={fadeUp}>
@@ -107,7 +107,7 @@ export function MigrationPage({ data, headers, selectedFile, onNavigate }: Migra
       </motion.div>
 
       {/* ── Workflow Progress ── */}
-      <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <motion.div variants={fadeUp} className="bg-white rounded-2xl border border-slate-200 shadow-sm px-6 py-5">
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-4">
           Workflow Progress
         </p>
@@ -146,7 +146,7 @@ export function MigrationPage({ data, headers, selectedFile, onNavigate }: Migra
             </p>
           </div>
 
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
+          <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
             <MetricCard
               label="File"
               value={selectedFile?.name ?? 'Untitled'}
@@ -359,7 +359,7 @@ function MetricCard({
   truncate?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+    <div className="flex items-center gap-3 p-5 rounded-xl border border-slate-100 bg-slate-50/50">
       <div
         className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
         style={{ backgroundColor: bg }}
